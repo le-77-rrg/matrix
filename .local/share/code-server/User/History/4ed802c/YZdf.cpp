@@ -72,7 +72,7 @@ void matmul_openmp(const std::vector<double>& A,
 // 方式2: 利用子块并行思想，进行缓存友好型的并行优化方法 （主要修改函数)
 void matmul_block_tiling(const std::vector<double>& A,
                          const std::vector<double>& B,
-                         std::vector<double>& C, int N, int M, int P, int block_size=64) {
+                         std::vector<double>& C, int N, int M, int P, int block_size) {
     std::cout << "matmul_block_tiling methods..." << std::endl;
 
     #pragma omp parallel for collapse(2)
@@ -92,63 +92,15 @@ void matmul_block_tiling(const std::vector<double>& A,
 
 // 方式3: 利用MPI消息传递，实现多进程并行优化 （主要修改函数）
 void matmul_mpi(int N, int M, int P) {
-    int rank, size;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-    int rows_per_proc = N / size;
-    std::vector<double> A_local(rows_per_proc * M);
-    std::vector<double> B(M * P);
-    std::vector<double> C_local(rows_per_proc * P, 0);
-    std::vector<double> A, C;
-
-    if (rank == 0) {
-        A.resize(N * M);
-        C.resize(N * P);
-        init_matrix(A, N, M);
-        init_matrix(B, M, P);
-    }
-
-    MPI_Bcast(B.data(), M * P, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Scatter(A.data(), rows_per_proc * M, MPI_DOUBLE, A_local.data(), rows_per_proc * M, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-    for (int i = 0; i < rows_per_proc; ++i)
-        for (int j = 0; j < P; ++j) {
-            for (int k = 0; k < M; ++k)
-                C_local[i * P + j] += A_local[i * M + k] * B[k * P + j];
-        }
-
-    MPI_Gather(C_local.data(), rows_per_proc * P, MPI_DOUBLE, C.data(), rows_per_proc * P, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-    if (rank == 0) {
-        std::vector<double> C_ref(N * P);
-        matmul_baseline(A, B, C_ref, N, M, P);
-        std::cout << "[MPI] Valid: " << validate(C, C_ref, N, P) << std::endl;
-    }
+    std::cout << "matmul_mpi methods..." << std::endl;
 }
 
-
 // 方式4: 其他方式 （主要修改函数）
-#include <numeric>  // std::inner_product
-
 void matmul_other(const std::vector<double>& A,
                   const std::vector<double>& B,
                   std::vector<double>& C, int N, int M, int P) {
     std::cout << "Other methods..." << std::endl;
-
-    #pragma omp parallel for collapse(2)
-    for (int i = 0; i < N; ++i)
-        for (int j = 0; j < P; ++j)
-            C[i * P + j] = std::inner_product(
-                A.begin() + i * M,
-                A.begin() + (i + 1) * M,
-                &B[0] + j,
-                0.0,
-                std::plus<>(),
-                [P](double a, double b){ return a * b; }
-            );
 }
-
 
 int main(int argc, char** argv) {
     const int N = 1024, M = 2048, P = 512;

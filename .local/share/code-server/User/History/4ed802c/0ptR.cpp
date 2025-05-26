@@ -72,7 +72,7 @@ void matmul_openmp(const std::vector<double>& A,
 // 方式2: 利用子块并行思想，进行缓存友好型的并行优化方法 （主要修改函数)
 void matmul_block_tiling(const std::vector<double>& A,
                          const std::vector<double>& B,
-                         std::vector<double>& C, int N, int M, int P, int block_size=64) {
+                         std::vector<double>& C, int N, int M, int P, int block_size) {
     std::cout << "matmul_block_tiling methods..." << std::endl;
 
     #pragma omp parallel for collapse(2)
@@ -122,10 +122,6 @@ void matmul_mpi(int N, int M, int P) {
 
     if (rank == 0) {
         std::vector<double> C_ref(N * P);
-        matmul_baseline(A, B, C_ref, N, M, P);
-        std::cout << "[MPI] Valid: " << validate(C, C_ref, N, P) << std::endl;
-    }
-}
 
 
 // 方式4: 其他方式 （主要修改函数）
