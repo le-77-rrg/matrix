@@ -1,0 +1,11 @@
+[2025-05-26 21:18:41.532] [exthost] [info] Extension host with pid 118 started
+[2025-05-26 21:18:41.544] [exthost] [info] Lock '/root/.local/share/code-server/User/workspaceStorage/5d18d21d/vscode.lock': Lock acquired.
+[2025-05-26 21:18:41.727] [exthost] [info] ExtensionService#_doActivateExtension vscode.debug-auto-launch, startup: true, activationEvent: '*'
+[2025-05-26 21:18:41.734] [exthost] [info] ExtensionService#_doActivateExtension vscode.git-base, startup: true, activationEvent: '*'
+[2025-05-26 21:18:41.739] [exthost] [info] ExtensionService#_doActivateExtension vscode.ipynb, startup: true, activationEvent: '*'
+[2025-05-26 21:18:41.800] [exthost] [info] ExtensionService#_doActivateExtension vscode.github, startup: true, activationEvent: '*'
+[2025-05-26 21:18:41.844] [exthost] [info] ExtensionService#_doActivateExtension vscode.emmet, startup: false, activationEvent: 'onStartupFinished'
+[2025-05-26 21:18:41.865] [exthost] [info] ExtensionService#_doActivateExtension vscode.merge-conflict, startup: false, activationEvent: 'onStartupFinished'
+[2025-05-26 21:18:41.871] [exthost] [info] Eager extensions activated
+[2025-05-26 21:18:43.545] [exthost] [info] ExtensionService#_doActivateExtension vscode.git, startup: false, activationEvent: 'api', root cause: vscode.github
+[2025-05-26 21:18:45.744] [exthost] [info] ExtensionService#_doActivateExtension vscode.github-authentication, startup: false, activationEvent: 'onAuthenticationRequest:github'

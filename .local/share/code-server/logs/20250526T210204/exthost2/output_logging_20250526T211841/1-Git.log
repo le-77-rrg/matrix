@@ -1,0 +1,36 @@
+[2025-05-26T13:18:43.749Z] Log level: Info
+[2025-05-26T13:18:43.756Z] [info] Validating found git in: git
+[2025-05-26T13:18:43.791Z] [info] Using git 2.25.1 from git
+[2025-05-26T13:18:43.810Z] > git rev-parse --show-toplevel [4ms]
+[2025-05-26T13:18:43.810Z] fatal: not a git repository (or any of the parent directories): .git
+[2025-05-26T13:18:43.820Z] > git rev-parse --show-toplevel [2ms]
+[2025-05-26T13:18:43.820Z] fatal: not a git repository (or any of the parent directories): .git
+[2025-05-26T13:18:43.825Z] > git rev-parse --show-toplevel [1ms]
+[2025-05-26T13:18:43.825Z] fatal: not a git repository (or any of the parent directories): .git
+[2025-05-26T13:18:43.831Z] > git rev-parse --show-toplevel [2ms]
+[2025-05-26T13:18:43.831Z] fatal: not a git repository (or any of the parent directories): .git
+[2025-05-26T13:18:43.836Z] > git rev-parse --show-toplevel [1ms]
+[2025-05-26T13:18:43.836Z] fatal: not a git repository (or any of the parent directories): .git
+[2025-05-26T13:18:43.842Z] > git rev-parse --show-toplevel [2ms]
+[2025-05-26T13:18:43.842Z] fatal: not a git repository (or any of the parent directories): .git
+[2025-05-26T13:18:43.851Z] > git rev-parse --show-toplevel [5ms]
+[2025-05-26T13:18:43.851Z] fatal: not a git repository (or any parent up to mount point /root)
+Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).
+[2025-05-26T13:20:12.922Z] > git init [8ms]
+[2025-05-26T13:20:12.928Z] > git rev-parse --show-toplevel [2ms]
+[2025-05-26T13:20:12.933Z] > git rev-parse --git-dir --git-common-dir [1ms]
+[2025-05-26T13:20:12.942Z] [info] Open repository: /root
+[2025-05-26T13:20:12.959Z] > git status -z -uall [9ms]
+[2025-05-26T13:20:12.965Z] > git symbolic-ref --short HEAD [1ms]
+[2025-05-26T13:20:12.972Z] > git for-each-ref --format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)%00%(upstream:remotename)%00%(upstream:remoteref) refs/heads/master refs/remotes/master [2ms]
+[2025-05-26T13:20:12.982Z] > git for-each-ref --sort -committerdate --format %(refname) %(objectname) %(*objectname) [5ms]
+[2025-05-26T13:20:12.982Z] > git remote --verbose [2ms]
+[2025-05-26T13:20:12.999Z] > git config --get commit.template [2ms]
+[2025-05-26T13:20:13.010Z] > git status -z -uall [6ms]
+[2025-05-26T13:20:13.016Z] > git symbolic-ref --short HEAD [2ms]
+[2025-05-26T13:20:13.021Z] > git for-each-ref --format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)%00%(upstream:remotename)%00%(upstream:remoteref) refs/heads/master refs/remotes/master [1ms]
+[2025-05-26T13:20:13.031Z] > git for-each-ref --sort -committerdate --format %(refname) %(objectname) %(*objectname) [5ms]
+[2025-05-26T13:20:13.031Z] > git remote --verbose [1ms]
+[2025-05-26T13:20:13.067Z] > git config --get commit.template [28ms]
+[2025-05-26T13:20:13.634Z] > git check-ignore -v -z --stdin [2ms]
+[2025-05-26T13:20:15.465Z] > git check-ignore -v -z --stdin [1ms]
