@@ -8,22 +8,22 @@
 
 // 编译执行方式参考：
 // 编译， 也可以使用g++，但使用MPI时需使用mpic
-// mpic++ -fopenmp -o outputfile sourcefile.cpp
+// mpic++ -fopenmp -o test test.cpp
 
 // 运行 baseline
-// ./outputfile baseline
+// ./test baseline
 
 // 运行 OpenMP
-// ./outputfile openmp
+// ./test openmp
 
 // 运行 子块并行优化
-// ./outputfile block
+// ./test block
 
 // 运行 MPI（假设 4 个进程）
-// mpirun -np 4 ./outputfile mpi
+// mpirun --allow-run-as-root -np 4 ./test mpi
 
 // 运行 MPI（假设 4 个进程）
-// ./outputfile other
+// ./test other
 
 
 // 初始化矩阵（以一维数组形式表示），用于随机填充浮点数
@@ -129,8 +129,6 @@ void matmul_mpi(int N, int M, int P) {
 
 
 // 方式4: 其他方式 （主要修改函数）
-#include <numeric>  // std::inner_product
-
 void matmul_other(const std::vector<double>& A,
                   const std::vector<double>& B,
                   std::vector<double>& C, int N, int M, int P) {
@@ -138,16 +136,14 @@ void matmul_other(const std::vector<double>& A,
 
     #pragma omp parallel for collapse(2)
     for (int i = 0; i < N; ++i)
-        for (int j = 0; j < P; ++j)
-            C[i * P + j] = std::inner_product(
-                A.begin() + i * M,
-                A.begin() + (i + 1) * M,
-                &B[0] + j,
-                0.0,
-                std::plus<>(),
-                [P](double a, double b){ return a * b; }
-            );
+        for (int j = 0; j < P; ++j) {
+            double sum = 0.0;
+            for (int k = 0; k < M; ++k)
+                sum += A[i * M + k] * B[k * P + j];  // B[k][j]
+            C[i * P + j] = sum;
+        }
 }
+
 
 
 int main(int argc, char** argv) {
