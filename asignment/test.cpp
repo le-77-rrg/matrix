@@ -112,18 +112,30 @@ void matmul_mpi(int N, int M, int P) {
     MPI_Bcast(B.data(), M * P, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Scatter(A.data(), rows_per_proc * M, MPI_DOUBLE, A_local.data(), rows_per_proc * M, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
+        // 计时开始
+    double start_time = MPI_Wtime();
+
+
     for (int i = 0; i < rows_per_proc; ++i)
         for (int j = 0; j < P; ++j) {
             for (int k = 0; k < M; ++k)
                 C_local[i * P + j] += A_local[i * M + k] * B[k * P + j];
         }
 
+    double local_elapsed = MPI_Wtime() - start_time;
+
     MPI_Gather(C_local.data(), rows_per_proc * P, MPI_DOUBLE, C.data(), rows_per_proc * P, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+
+    // 获取所有进程中最大的运行时间作为整个MPI计算的耗时
+    double max_elapsed;
+    MPI_Reduce(&local_elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
     if (rank == 0) {
         std::vector<double> C_ref(N * P);
         matmul_baseline(A, B, C_ref, N, M, P);
-        std::cout << "[MPI] Valid: " << validate(C, C_ref, N, P) << std::endl;
+        std::cout << "[MPI] Valid: " << validate(C, C_ref, N, P)
+                  << ", Time: " << max_elapsed << " seconds\n";
     }
 }
 
@@ -164,19 +176,32 @@ int main(int argc, char** argv) {
 
     init_matrix(A, N, M);
     init_matrix(B, M, P);
+    double start_time, end_time;
+    start_time = omp_get_wtime();
     matmul_baseline(A, B, C_ref, N, M, P);
+    end_time = omp_get_wtime();
+    std::cout << "[Baseline] " << "Time: " << (end_time - start_time) << " seconds\n";
 
     if (mode == "baseline") {
         std::cout << "[Baseline] Done.\n";
     } else if (mode == "openmp") {
+        start_time = omp_get_wtime();
         matmul_openmp(A, B, C, N, M, P);
-        std::cout << "[OpenMP] Valid: " << validate(C, C_ref, N, P) << std::endl;
+        end_time = omp_get_wtime();
+        std::cout << "[OpenMP] Valid: " << validate(C, C_ref, N, P)
+                  << ", Time: " << (end_time - start_time) << " seconds\n";
     } else if (mode == "block") {
+        start_time = omp_get_wtime();
         matmul_block_tiling(A, B, C, N, M, P);
-        std::cout << "[Block Parallel] Valid: " << validate(C, C_ref, N, P) << std::endl;
+        end_time = omp_get_wtime();
+        std::cout << "[Block Parallel] Valid: " << validate(C, C_ref, N, P)
+                  << ", Time: " << (end_time - start_time) << " seconds\n";
     } else if (mode == "other") {
+        start_time = omp_get_wtime();
         matmul_other(A, B, C, N, M, P);
-        std::cout << "[Other] Valid: " << validate(C, C_ref, N, P) << std::endl;
+        end_time = omp_get_wtime();
+        std::cout << "[Other] Valid: " << validate(C, C_ref, N, P)
+                  << ", Time: " << (end_time - start_time) << " seconds\n";
     } else {
         std::cerr << "Usage: ./main [baseline|openmp|block|mpi]" << std::endl;
     }
