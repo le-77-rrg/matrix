@@ -22,8 +22,8 @@
 // 运行 MPI（假设 4 个进程）
 // mpirun --allow-run-as-root -np 4 ./test mpi
 
-// 运行 MPI（假设 4 个进程）
-// ./test other
+// 运行 SIMD
+// ./test simd
 
 
 // 初始化矩阵（以一维数组形式表示），用于随机填充浮点数
@@ -263,37 +263,32 @@ void matmul_mpi_optimized(int N, int M, int P) {
 }
 
 
-void matmul_other(const std::vector<double>& A,
-                  const std::vector<double>& B,
-                  std::vector<double>& C, int N, int M, int P) {
-    std::cout << "Other methods (Hybrid Blocked + OpenMP Optimized)..." << std::endl;
 
-    const int block_size = 64;  // 调整以适配缓存
-    #pragma omp parallel
-    {
-        std::vector<double> C_local(N * P, 0.0);  // 每线程私有缓存，避免写冲突
+void matmul_simd(const std::vector<double>& A,
+                           const std::vector<double>& B,
+                           std::vector<double>& C,
+                           int N, int M, int P) {
+    std::cout << "matmul_simd_transpose methods..." << std::endl;
 
-        #pragma omp for collapse(2) nowait
-        for (int ii = 0; ii < N; ii += block_size) {
-            for (int jj = 0; jj < P; jj += block_size) {
-                for (int kk = 0; kk < M; kk += block_size) {
-                    for (int i = ii; i < std::min(ii + block_size, N); ++i) {
-                        for (int k = kk; k < std::min(kk + block_size, M); ++k) {
-                            double a_val = A[i * M + k];
-                            for (int j = jj; j < std::min(jj + block_size, P); ++j) {
-                                C_local[i * P + j] += a_val * B[k * P + j];
-                            }
-                        }
-                    }
-                }
+    // 先转置 B 为 B_T，使其按行访问连续
+    std::vector<double> B_T(P * M);
+    for (int i = 0; i < M; ++i)
+        for (int j = 0; j < P; ++j)
+            B_T[j * M + i] = B[i * P + j];
+
+    // 主乘法逻辑，SIMD 向量化
+    #pragma omp parallel for schedule(static)
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < P; ++j) {
+            double sum = 0.0;
+
+            // 向量化核心内层循环
+            #pragma omp simd reduction(+:sum)
+            for (int k = 0; k < M; ++k) {
+                sum += A[i * M + k] * B_T[j * M + k];
             }
-        }
 
-        // 归约写入主结果
-        #pragma omp critical
-        {
-            for (int i = 0; i < N * P; ++i)
-                C[i] += C_local[i];
+            C[i * P + j] = sum;
         }
     }
 }
@@ -329,7 +324,7 @@ int main(int argc, char** argv) {
         std::cout << "[Baseline] Done.\n";
     } else if (mode == "openmp") {
         start_time = omp_get_wtime();
-        matmul_openmp_transpose(A, B, C, N, M, P);
+        matmul_openmp_optimized(A, B, C, N, M, P);
         end_time = omp_get_wtime();
         std::cout << "[OpenMP] Valid: " << validate(C, C_ref, N, P)
                   << ", Time: " << (end_time - start_time) << " seconds\n";
@@ -339,14 +334,14 @@ int main(int argc, char** argv) {
         end_time = omp_get_wtime();
         std::cout << "[Block Parallel] Valid: " << validate(C, C_ref, N, P)
                   << ", Time: " << (end_time - start_time) << " seconds\n";
-    } else if (mode == "other") {
+    } else if (mode == "simd") {
         start_time = omp_get_wtime();
-        matmul_other(A, B, C, N, M, P);
+        matmul_simd(A, B, C, N, M, P);
         end_time = omp_get_wtime();
-        std::cout << "[Other] Valid: " << validate(C, C_ref, N, P)
+        std::cout << "[Simd] Valid: " << validate(C, C_ref, N, P)
                   << ", Time: " << (end_time - start_time) << " seconds\n";
     } else {
-        std::cerr << "Usage: ./main [baseline|openmp|block|mpi]" << std::endl;
+        std::cerr << "Usage: ./test [baseline|openmp|block|mpi|simd]" << std::endl;
     }
         // 需额外增加性能评测代码或其他工具进行评测
     return 0;
