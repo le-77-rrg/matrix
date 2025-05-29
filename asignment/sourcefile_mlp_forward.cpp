@@ -16,19 +16,7 @@
 #define H 20       // 增大隐藏层维度
 #define O 5        // 增大输出维度
 
-// 修正的矩阵乘法核函数
-__global__ void matmul_kernel(const double* A, const double* B, double* C, int M, int N, int K) {
-    int row = blockIdx.y * blockDim.y + threadIdx.y;
-    int col = blockIdx.x * blockDim.x + threadIdx.x;
-    
-    if (row < M && col < N) {  // 修正：col < N
-        double sum = 0.0;
-        for (int k = 0; k < K; ++k) {
-            sum += A[row * K + k] * B[k * N + col];  // 修正索引
-        }
-        C[row * N + col] = sum;  // 修正输出索引
-    }
-}
+
 
 // 优化的矩阵乘法核函数（使用共享内存）
 __global__ void matmul_kernel_optimized(const double* A, const double* B, double* C, int M, int N, int K) {
