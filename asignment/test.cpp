@@ -163,7 +163,8 @@ void matmul_mpi(int N, int M, int P) {
 
     int rows_per_proc = N / size;
     std::vector<double> A_local(rows_per_proc * M);
-    std::vector<double> B(M * P);
+    std::vector<double> B(M * P);           // 原始B矩阵，广播用
+    std::vector<double> B_T(P * M);         // 转置后的B矩阵，用于计算
     std::vector<double> C_local(rows_per_proc * P, 0);
     std::vector<double> A, C;
 
@@ -174,26 +175,29 @@ void matmul_mpi(int N, int M, int P) {
         init_matrix(B, M, P);
 
         // 对B进行转置，方便缓存访问
-        std::vector<double> B_T(P * M);
         for (int m = 0; m < M; ++m) {
             for (int p = 0; p < P; ++p) {
                 B_T[p * M + m] = B[m * P + p];
             }
         }
-        B = std::move(B_T);
     }
 
-    // 广播转置后的B
+    // 广播原始的B矩阵，方便后面验证（验证时用）
     MPI_Bcast(B.data(), M * P, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    // 广播转置后的B矩阵，计算时用
+    MPI_Bcast(B_T.data(), M * P, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
     MPI_Scatter(A.data(), rows_per_proc * M, MPI_DOUBLE, A_local.data(), rows_per_proc * M, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     double start_time = MPI_Wtime();
 
+    // 计算 C_local = A_local * B_T^T = A_local * B
     for (int i = 0; i < rows_per_proc; ++i) {
         for (int j = 0; j < P; ++j) {
             double sum = 0;
             for (int k = 0; k < M; ++k) {
-                sum += A_local[i * M + k] * B[j * M + k];  // 访问转置后的B，缓存友好
+                sum += A_local[i * M + k] * B_T[j * M + k];  // 访问转置后的B，连续访问缓存友好
             }
             C_local[i * P + j] = sum;
         }
@@ -208,11 +212,12 @@ void matmul_mpi(int N, int M, int P) {
 
     if (rank == 0) {
         std::vector<double> C_ref(N * P);
-        matmul_baseline(A, B, C_ref, N, M, P);  // 这里B是转置了的，需要注意验证函数也要对应调整
+        matmul_baseline(A, B, C_ref, N, M, P);  // 这里用原始B做验证
         std::cout << "[MPI] Valid: " << validate(C, C_ref, N, P)
                   << ", Time: " << max_elapsed << " seconds\n";
     }
 }
+
 
 
 
