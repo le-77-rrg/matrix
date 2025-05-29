@@ -68,18 +68,28 @@ void matmul_openmp(const std::vector<double>& A,
         }
 }
 
+
 void matmul_openmp_optimized(const std::vector<double>& A,
                              const std::vector<double>& B,
-                             std::vector<double>& C, int N, int M, int P) {
+                             std::vector<double>& C,
+                             int N, int M, int P) {
     std::cout << "matmul_openmp_optimized methods..." << std::endl;
-    
+
+    // Step 1: Transpose B => B_T[P][M]
+    std::vector<double> B_T(P * M);
+    for (int i = 0; i < M; ++i)
+        for (int j = 0; j < P; ++j)
+            B_T[j * M + i] = B[i * P + j];
+
+    // Step 2: Matrix multiplication using transposed B
     #pragma omp parallel for
     for (int i = 0; i < N; ++i) {
-        for (int k = 0; k < M; ++k) {
-            double a_ik = A[i * M + k];
-            for (int j = 0; j < P; ++j) {
-                C[i * P + j] += a_ik * B[k * P + j];  // B[k * P + j] 顺序访问（按行），cache 更友好
+        for (int j = 0; j < P; ++j) {
+            double sum = 0;
+            for (int k = 0; k < M; ++k) {
+                sum += A[i * M + k] * B_T[j * M + k];  // Both accesses are row-major (cache-friendly)
             }
+            C[i * P + j] = sum;
         }
     }
 }
@@ -106,57 +116,91 @@ void matmul_block_tiling(const std::vector<double>& A,
                     }
 }
 
+void matmul_block_tiling_optimized(const std::vector<double>& A,
+                                        const std::vector<double>& B,
+                                        std::vector<double>& C,
+                                        int N, int M, int P,
+                                        int block_size = 64) {
+    std::cout << "matmul_block_tiling_optimized methods..." << std::endl;
 
-// // 方式3: 利用MPI消息传递，实现多进程并行优化 （主要修改函数）
-// void matmul_mpi(int N, int M, int P) {
-//     int rank, size;
-//     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-//     MPI_Comm_size(MPI_COMM_WORLD, &size);
+    // 先转置矩阵B，变成 B_t[P][M]
+    std::vector<double> B_t(P * M);
+    for (int i = 0; i < M; ++i)
+        for (int j = 0; j < P; ++j)
+            B_t[j * M + i] = B[i * P + j];
 
-//     int rows_per_proc = N / size;
-//     std::vector<double> A_local(rows_per_proc * M);
-//     std::vector<double> B(M * P);
-//     std::vector<double> C_local(rows_per_proc * P, 0);
-//     std::vector<double> A, C;
-
-//     if (rank == 0) {
-//         A.resize(N * M);
-//         C.resize(N * P);
-//         init_matrix(A, N, M);
-//         init_matrix(B, M, P);
-//     }
-
-//     MPI_Bcast(B.data(), M * P, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-//     MPI_Scatter(A.data(), rows_per_proc * M, MPI_DOUBLE, A_local.data(), rows_per_proc * M, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-//         // 计时开始
-//     double start_time = MPI_Wtime();
-
-
-//     for (int i = 0; i < rows_per_proc; ++i)
-//         for (int j = 0; j < P; ++j) {
-//             for (int k = 0; k < M; ++k)
-//                 C_local[i * P + j] += A_local[i * M + k] * B[k * P + j];
-//         }
-
-//     double local_elapsed = MPI_Wtime() - start_time;
-
-//     MPI_Gather(C_local.data(), rows_per_proc * P, MPI_DOUBLE, C.data(), rows_per_proc * P, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    #pragma omp parallel for collapse(2)
+    for (int ii = 0; ii < N; ii += block_size)
+        for (int jj = 0; jj < P; jj += block_size) {
+            for (int i = ii; i < std::min(ii + block_size, N); ++i) {
+                for (int j = jj; j < std::min(jj + block_size, P); ++j) {
+                    double sum = 0;
+                    for (int k = 0; k < M; ++k) {
+                        sum += A[i * M + k] * B_t[j * M + k];  // B访问变成连续访问
+                    }
+                    C[i * P + j] += sum;
+                }
+            }
+        }
+}
 
 
-//     // 获取所有进程中最大的运行时间作为整个MPI计算的耗时
-//     double max_elapsed;
-//     MPI_Reduce(&local_elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
-//     if (rank == 0) {
-//         std::vector<double> C_ref(N * P);
-//         matmul_baseline(A, B, C_ref, N, M, P);
-//         std::cout << "[MPI] Valid: " << validate(C, C_ref, N, P)
-//                   << ", Time: " << max_elapsed << " seconds\n";
-//     }
-// }
 
+
+
+
+
+// 方式3: 利用MPI消息传递，实现多进程并行优化 （主要修改函数）
 void matmul_mpi(int N, int M, int P) {
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    int rows_per_proc = N / size;
+    std::vector<double> A_local(rows_per_proc * M);
+    std::vector<double> B(M * P);
+    std::vector<double> C_local(rows_per_proc * P, 0);
+    std::vector<double> A, C;
+
+    if (rank == 0) {
+        A.resize(N * M);
+        C.resize(N * P);
+        init_matrix(A, N, M);
+        init_matrix(B, M, P);
+    }
+
+    MPI_Bcast(B.data(), M * P, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Scatter(A.data(), rows_per_proc * M, MPI_DOUBLE, A_local.data(), rows_per_proc * M, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+        // 计时开始
+    double start_time = MPI_Wtime();
+
+
+    for (int i = 0; i < rows_per_proc; ++i)
+        for (int j = 0; j < P; ++j) {
+            for (int k = 0; k < M; ++k)
+                C_local[i * P + j] += A_local[i * M + k] * B[k * P + j];
+        }
+
+    double local_elapsed = MPI_Wtime() - start_time;
+
+    MPI_Gather(C_local.data(), rows_per_proc * P, MPI_DOUBLE, C.data(), rows_per_proc * P, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+
+    // 获取所有进程中最大的运行时间作为整个MPI计算的耗时
+    double max_elapsed;
+    MPI_Reduce(&local_elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+    if (rank == 0) {
+        std::vector<double> C_ref(N * P);
+        matmul_baseline(A, B, C_ref, N, M, P);
+        std::cout << "[MPI] Valid: " << validate(C, C_ref, N, P)
+                  << ", Time: " << max_elapsed << " seconds\n";
+    }
+}
+
+void matmul_mpi_optimized(int N, int M, int P) {
     int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -219,8 +263,6 @@ void matmul_mpi(int N, int M, int P) {
 }
 
 
-
-
 void matmul_other(const std::vector<double>& A,
                   const std::vector<double>& B,
                   std::vector<double>& C, int N, int M, int P) {
@@ -265,7 +307,7 @@ int main(int argc, char** argv) {
 
     if (mode == "mpi") {
         MPI_Init(&argc, &argv);
-        matmul_mpi(N, M, P);
+        matmul_mpi_optimized(N, M, P);
         MPI_Finalize();
         return 0;
     }
@@ -287,13 +329,13 @@ int main(int argc, char** argv) {
         std::cout << "[Baseline] Done.\n";
     } else if (mode == "openmp") {
         start_time = omp_get_wtime();
-        matmul_openmp_optimized(A, B, C, N, M, P);
+        matmul_openmp_transpose(A, B, C, N, M, P);
         end_time = omp_get_wtime();
         std::cout << "[OpenMP] Valid: " << validate(C, C_ref, N, P)
                   << ", Time: " << (end_time - start_time) << " seconds\n";
     } else if (mode == "block") {
         start_time = omp_get_wtime();
-        matmul_block_tiling(A, B, C, N, M, P);
+        matmul_block_tiling_optimized(A, B, C, N, M, P);
         end_time = omp_get_wtime();
         std::cout << "[Block Parallel] Valid: " << validate(C, C_ref, N, P)
                   << ", Time: " << (end_time - start_time) << " seconds\n";
