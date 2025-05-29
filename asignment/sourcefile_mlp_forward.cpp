@@ -5,6 +5,11 @@
 #include <cmath>
 #include <chrono>
 
+// 编译文件
+// hipcc sourcefile_mlp_forward.cpp -o mlp_forward
+// 执行文件
+// ./mlp_forward 或者 hipprof ./mlp_forward
+
 // 增大计算规模以更好体现GPU优势
 #define BATCH 1024  // 增大batch size
 #define I 10      // 增大输入维度

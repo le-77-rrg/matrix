@@ -9,6 +9,7 @@
 // hipcc sourcefile_dcu.cpp -o outputfile_dcu
 // 执行
 // ./outputfile_dcu
+//hipprof ./outputfile_dcu
 
 #define N 1024
 #define M 2024
