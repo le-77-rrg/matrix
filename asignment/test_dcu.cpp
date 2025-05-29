@@ -8,19 +8,17 @@
 
 // 编译执行方式参考：
 // 编译， 也可以使用g++，但使用MPI时需使用mpic
-// mpic++ -fopenmp -o test test.cpp
+// hipcc -O2 -fopenmp -o test_dcu test_dcu.cpp
 
 // 运行 baseline
-// ./test baseline
+// ./test_dcu baseline
 
 // 运行 OpenMP
-// ./test openmp
+// ./test_dcu openmp
 
 // 运行 子块并行优化
-// ./test block
+// ./test_dcu block
 
-// 运行 MPI（假设 4 个进程）
-// mpirun --allow-run-as-root -np 4 ./test mpib
 
 // 运行 MPI（假设 4 个进程）
 // ./test other
