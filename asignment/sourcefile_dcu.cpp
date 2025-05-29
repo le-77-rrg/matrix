@@ -5,8 +5,6 @@
 #include <cmath>
 #include <chrono>
 
-
-
 // 编译
 // hipcc sourcefile_dcu.cpp -o outputfile_dcu
 // 执行
@@ -29,7 +27,41 @@ __global__ void matmul_kernel(const double* A, const double* B, double* C, int n
     }
 }
 
-#include <hipblas.h>  // 新增 hipblas 头文件
+#define TILE_SIZE 16
+
+__global__ void matmul_kernel_shared(const double* A, const double* B, double* C, int n, int m, int p) {
+    __shared__ double tile_A[TILE_SIZE][TILE_SIZE];
+    __shared__ double tile_B[TILE_SIZE][TILE_SIZE];
+
+    int row = blockIdx.y * TILE_SIZE + threadIdx.y;
+    int col = blockIdx.x * TILE_SIZE + threadIdx.x;
+
+    double sum = 0.0;
+
+    for (int t = 0; t < (m + TILE_SIZE - 1) / TILE_SIZE; ++t) {
+        // 从全局内存加载子块 A 和 B 到共享内存（边界检查）
+        if (row < n && t * TILE_SIZE + threadIdx.x < m)
+            tile_A[threadIdx.y][threadIdx.x] = A[row * m + t * TILE_SIZE + threadIdx.x];
+        else
+            tile_A[threadIdx.y][threadIdx.x] = 0.0;
+
+        if (t * TILE_SIZE + threadIdx.y < m && col < p)
+            tile_B[threadIdx.y][threadIdx.x] = B[(t * TILE_SIZE + threadIdx.y) * p + col];
+        else
+            tile_B[threadIdx.y][threadIdx.x] = 0.0;
+
+        __syncthreads();  // 同步线程块内所有线程
+
+        for (int k = 0; k < TILE_SIZE; ++k)
+            sum += tile_A[threadIdx.y][k] * tile_B[k][threadIdx.x];
+
+        __syncthreads();  // 准备下一轮 tile 加载
+    }
+
+    if (row < n && col < p)
+        C[row * p + col] = sum;
+}
+
 
 double matmul_dcu(const std::vector<double>& A, const std::vector<double>& B, std::vector<double>& C) {
     double *d_A, *d_B, *d_C;
@@ -40,33 +72,16 @@ double matmul_dcu(const std::vector<double>& A, const std::vector<double>& B, st
     hipMemcpy(d_A, A.data(), sizeof(double) * N * M, hipMemcpyHostToDevice);
     hipMemcpy(d_B, B.data(), sizeof(double) * M * P, hipMemcpyHostToDevice);
 
-    hipblasHandle_t handle;
-    hipblasCreate(&handle);
+    dim3 blockDim(16, 16);
+    dim3 gridDim((P + blockDim.x - 1) / blockDim.x,
+                 (N + blockDim.y - 1) / blockDim.y);
 
     hipEvent_t start, stop;
     hipEventCreate(&start);
     hipEventCreate(&stop);
     hipEventRecord(start);
 
-    const double alpha = 1.0;
-    const double beta = 0.0;
-
-    // 注意 hipblasDgemm 是列主矩阵，且参数顺序是 C = alpha*op(A)*op(B) + beta*C
-    // 这里我们矩阵按行主存储，因此传入时把A和B顺序对调并设置转置，以等价于行主乘法
-    // 即：C = A * B
-    // 传给hipblas: op(B) = N, op(A) = N, 矩阵尺寸参数对应
-    hipblasStatus_t status = hipblasDgemm(handle,
-                                         HIPBLAS_OP_N, HIPBLAS_OP_N,
-                                         P, N, M,       // C维度是N×P，但hipblas按列主，所以传入P,N
-                                         &alpha,
-                                         d_B, P,        // B矩阵 (M×P)，列主存储时 leading dimension = P
-                                         d_A, M,        // A矩阵 (N×M)，列主存储时 leading dimension = M
-                                         &beta,
-                                         d_C, P);       // C矩阵 (N×P)，列主存储时 leading dimension = P
-
-    if (status != HIPBLAS_STATUS_SUCCESS) {
-        std::cerr << "hipblasDgemm failed\n";
-    }
+    matmul_kernel_shared<<<gridDim, blockDim>>>(d_A, d_B, d_C, N, M, P);
 
     hipEventRecord(stop);
     hipEventSynchronize(stop);
@@ -79,10 +94,9 @@ double matmul_dcu(const std::vector<double>& A, const std::vector<double>& B, st
     hipFree(d_B);
     hipFree(d_C);
 
-    hipblasDestroy(handle);
-
-    return static_cast<double>(milliseconds);  // 单位 ms
+    return static_cast<double>(milliseconds);  // 毫秒
 }
+
 
 
 

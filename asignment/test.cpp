@@ -140,21 +140,41 @@ void matmul_mpi(int N, int M, int P) {
 }
 
 
-// 方式4: 其他方式 （主要修改函数）
 void matmul_other(const std::vector<double>& A,
                   const std::vector<double>& B,
                   std::vector<double>& C, int N, int M, int P) {
-    std::cout << "Other methods..." << std::endl;
+    std::cout << "Other methods (Hybrid Blocked + OpenMP Optimized)..." << std::endl;
 
-    #pragma omp parallel for collapse(2)
-    for (int i = 0; i < N; ++i)
-        for (int j = 0; j < P; ++j) {
-            double sum = 0.0;
-            for (int k = 0; k < M; ++k)
-                sum += A[i * M + k] * B[k * P + j];  // B[k][j]
-            C[i * P + j] = sum;
+    const int block_size = 64;  // 调整以适配缓存
+    #pragma omp parallel
+    {
+        std::vector<double> C_local(N * P, 0.0);  // 每线程私有缓存，避免写冲突
+
+        #pragma omp for collapse(2) nowait
+        for (int ii = 0; ii < N; ii += block_size) {
+            for (int jj = 0; jj < P; jj += block_size) {
+                for (int kk = 0; kk < M; kk += block_size) {
+                    for (int i = ii; i < std::min(ii + block_size, N); ++i) {
+                        for (int k = kk; k < std::min(kk + block_size, M); ++k) {
+                            double a_val = A[i * M + k];
+                            for (int j = jj; j < std::min(jj + block_size, P); ++j) {
+                                C_local[i * P + j] += a_val * B[k * P + j];
+                            }
+                        }
+                    }
+                }
+            }
         }
+
+        // 归约写入主结果
+        #pragma omp critical
+        {
+            for (int i = 0; i < N * P; ++i)
+                C[i] += C_local[i];
+        }
+    }
 }
+
 
 
 
